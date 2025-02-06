@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Calculate SNR for hyperspectral data using wavelengths
+Calculate SNR for hyperspectral data using both spatial and spectral domain methods
 
 @author: Morteza
 """
@@ -17,42 +17,62 @@ spectral_image = spectral.open_image(header_file)
 
 # Access the data as a NumPy array
 hyperspectral_data = spectral_image.load()
-
-# Extract wavelengths from the hyperspectral image header
 wavelengths = np.array([float(w) for w in spectral_image.metadata['wavelength']])
 
-# Function to calculate SNR per band
-def calculate_snr(hyperspectral_data):
+# Function for Spatial Domain SNR Calculation
+def calculate_spatial_snr(hyperspectral_data):
     num_bands = hyperspectral_data.shape[2]
-    snr_values = []
-    
+    spatial_snr_values = []
+
     for i in range(num_bands):
         band_data = hyperspectral_data[:, :, i]
-        
-        # Mean signal value for the band
         signal_mean = np.mean(band_data)
-        
-        # Noise estimate: standard deviation of the band data
         noise_std = np.std(band_data)
-        
-        # SNR calculation
         snr = signal_mean / noise_std if noise_std != 0 else 0
-        snr_values.append(snr)
-    
-    return np.array(snr_values)
+        spatial_snr_values.append(snr)
 
-# Calculate SNR for all bands
-snr_values = calculate_snr(hyperspectral_data)
+    return np.array(spatial_snr_values)
 
-# Plot SNR values across wavelengths
+# Function for Spectral Domain SNR Calculation per pixel
+def calculate_spectral_snr(hyperspectral_data):
+    height, width, num_bands = hyperspectral_data.shape
+    spectral_snr_values = np.zeros((height, width))
+
+    # Calculate SNR for each pixel across all spectral bands
+    for i in range(height):
+        for j in range(width):
+            pixel_spectrum = hyperspectral_data[i, j, :]
+            signal_mean = np.mean(pixel_spectrum)
+            noise_std = np.std(pixel_spectrum)
+            spectral_snr_values[i, j] = signal_mean / noise_std if noise_std != 0 else 0
+
+    return spectral_snr_values
+
+# Calculate SNR for each method
+spatial_snr_values = calculate_spatial_snr(hyperspectral_data)
+spectral_snr_values = calculate_spectral_snr(hyperspectral_data)
+
+# Plot Spatial Domain SNR
 plt.figure(figsize=(10, 6))
-plt.plot(wavelengths, snr_values, marker='o', linestyle='-', color='b')
-plt.title('SNR for Each Hyperspectral Band')
+plt.plot(wavelengths, spatial_snr_values, label='Spatial Domain SNR', marker='o', linestyle='-', color='blue')
+plt.title('Spatial Domain SNR Across Wavelengths')
 plt.xlabel('Wavelength (nm)')
 plt.ylabel('SNR')
+plt.legend()
 plt.grid(True)
 plt.show()
 
-# Print average SNR across all bands
-average_snr = np.mean(snr_values)
-print(f"Average SNR across all bands: {average_snr:.2f}")
+# Plot Spectral Domain SNR as a heatmap
+plt.figure(figsize=(10, 6))
+plt.imshow(spectral_snr_values, cmap='viridis', aspect='auto')
+plt.colorbar(label='Spectral Domain SNR')
+plt.title('Spectral Domain SNR Across Pixels')
+plt.xlabel('Pixel X')
+plt.ylabel('Pixel Y')
+plt.show()
+
+# Print average SNR values for additional insight
+average_spatial_snr = np.mean(spatial_snr_values)
+average_spectral_snr = np.mean(spectral_snr_values)
+print(f"Average Spatial Domain SNR: {average_spatial_snr:.2f}")
+print(f"Average Spectral Domain SNR: {average_spectral_snr:.2f}")
